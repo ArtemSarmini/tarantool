@@ -1,5 +1,5 @@
-#ifndef INCLUDES_TARANTOOL_LUA_POPEN_H
-#define INCLUDES_TARANTOOL_LUA_POPEN_H
+#ifndef TARANTOOL_LUA_POPEN_H_INCLUDED
+#define TARANTOOL_LUA_POPEN_H_INCLUDED
 /*
  * Copyright 2010-2019, Tarantool AUTHORS, please see AUTHORS file.
  *
@@ -41,4 +41,4 @@ void tarantool_lua_popen_init(struct lua_State *L);
 } /* extern "C" */
 #endif /* defined(__cplusplus) */
 
-#endif /* INCLUDES_TARANTOOL_LUA_POPEN_H */
+#endif /* TARANTOOL_LUA_POPEN_H_INCLUDED */
