@@ -393,7 +393,7 @@ lbox_popen_info(struct lua_State *L)
  *
  * If there is a running child it get killed first.
  *
- * Returns true if a handle is closeed, false otherwise.
+ * Returns true if a handle is closed, false otherwise.
  */
 static int
 lbox_popen_delete(struct lua_State *L)
