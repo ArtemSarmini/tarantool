@@ -200,8 +200,11 @@ end
 --
 -- Fetch a child process state
 --
--- Returns @err = nil, @state = popen.c.state, @exit_code = num,
--- otherwise @err ~= nil.
+-- Returns @state = popen.c.state.<...>, @exit_code = num.
+-- Returns nil, err for closed handle.
+--
+-- XXX: status -> state? Or state -> status?
+--      Or make it returncode?
 --
 popen_methods.state = function(self)
     if self.cdata == nil then return closed_popen_handle() end
@@ -211,20 +214,22 @@ end
 --
 -- Wait until a child process get exited.
 --
--- Returns the same as popen_methods.status.
--- XXX: status -> state?
+-- Returns the same as popen_methods.state.
+-- Returns nil, err for closed handle.
+--
+-- XXX: Use fiber conds to sleep and wake up.
 --
 popen_methods.wait = function(self)
     if self.cdata == nil then return closed_popen_handle() end
-    local err, state, code
+    local state, code
     while true do
-        err, state, code = builtin.state(self.cdata)
-        if err or state ~= popen.c.state.ALIVE then
+        state, code = builtin.state(self.cdata)
+        if state ~= popen.c.state.ALIVE then
             break
         end
         fiber.sleep(self.wait_secs)
     end
-    return err, state, code
+    return state, code
 end
 
 --

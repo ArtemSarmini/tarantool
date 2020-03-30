@@ -337,8 +337,7 @@ lbox_popen_signal(struct lua_State *L)
  * lbox_popen_state - fetch popen child process status
  * @handle:	a handle to fetch status from
  *
- * Returns @err = nil, @reason = POPEN_STATE_x,
- * @exit_code = 'number' on success, @err ~= nil on error.
+ * Returns @state = POPEN_STATE_x, @exit_code = 'number'.
  */
 static int
 lbox_popen_state(struct lua_State *L)
@@ -346,16 +345,13 @@ lbox_popen_state(struct lua_State *L)
 	struct popen_handle *p = lua_touserdata(L, 1);
 	assert(p != NULL);
 
-	int state, exit_code, ret;
+	int state, exit_code;
 
-	ret = popen_state(p, &state, &exit_code);
-	if (ret < 0)
-		return luaT_popen_push_error(L);
+	popen_state(p, &state, &exit_code);
 
-	lua_pushnil(L);
 	lua_pushinteger(L, state);
 	lua_pushinteger(L, exit_code);
-	return 3;
+	return 2;
 }
 
 /**
@@ -429,15 +425,15 @@ static int
 lbox_popen_info(struct lua_State *L)
 {
 	struct popen_handle *handle = lua_touserdata(L, 1);
-	int state, exit_code, ret;
-	struct popen_stat st = { };
+	assert(handle != NULL);
 
-	if (popen_stat(handle, &st))
+	int state, exit_code;
+	struct popen_stat st = {};
+
+	if (popen_stat(handle, &st) != 0)
 		return luaT_popen_pushsyserror(L);
 
-	ret = popen_state(handle, &state, &exit_code);
-	if (ret < 0)
-		return luaT_popen_pushsyserror(L);
+	popen_state(handle, &state, &exit_code);
 
 	assert(state < POPEN_STATE_MAX);
 

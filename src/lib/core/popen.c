@@ -381,7 +381,7 @@ popen_sigchld_handler(EV_P_ ev_child *w, int revents)
 /**
  * Get current child state.
  */
-int
+void
 popen_state(struct popen_handle *handle, int *state, int *exit_code)
 {
 	assert(handle != NULL);
@@ -398,8 +398,6 @@ popen_state(struct popen_handle *handle, int *state, int *exit_code)
 			*exit_code = WTERMSIG(handle->wstatus);
 		}
 	}
-
-	return 0;
 }
 
 /**
