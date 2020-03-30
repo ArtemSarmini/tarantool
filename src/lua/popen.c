@@ -42,14 +42,14 @@
 #include "lua/popen.h"
 
 static inline int
-lbox_pushsyserror(struct lua_State *L)
+luaT_popen_pushsyserror(struct lua_State *L)
 {
 	diag_set(SystemError, "popen: %s", strerror(errno));
 	return luaT_push_nil_and_error(L);
 }
 
 static inline int
-lbox_push_error(struct lua_State *L)
+luaT_popen_push_error(struct lua_State *L)
 {
 	diag_set(SystemError, "popen: %s", strerror(errno));
 	struct error *e = diag_last_error(diag_get());
@@ -59,13 +59,14 @@ lbox_push_error(struct lua_State *L)
 }
 
 static inline int
-lbox_pushbool(struct lua_State *L, bool res)
+luaT_popen_pushbool(struct lua_State *L, bool res)
 {
-	lua_pushboolean(L, res);
 	if (!res) {
-		lbox_push_error(L);
+		lua_pushnil(L);
+		luaT_popen_push_error(L);
 		return 2;
 	}
+	lua_pushboolean(L, true);
 	return 1;
 }
 
@@ -192,9 +193,10 @@ lbox_popen_new(struct lua_State *L)
 	free(opts.env);
 
 	if (!handle)
-		return lbox_pushsyserror(L);
+		return luaT_popen_pushsyserror(L);
 
 	lua_pushlightuserdata(L, handle);
+	// XXX: gc handler?
 	return 1;
 }
 
@@ -212,7 +214,8 @@ static int
 lbox_popen_kill(struct lua_State *L)
 {
 	struct popen_handle *p = lua_touserdata(L, 1);
-	return lbox_pushbool(L, popen_send_signal(p, SIGKILL) == 0);
+	// XXX: check for NULL? Or in Lua?
+	return luaT_popen_pushbool(L, popen_send_signal(p, SIGKILL) == 0);
 }
 
 /**
@@ -226,7 +229,8 @@ static int
 lbox_popen_term(struct lua_State *L)
 {
 	struct popen_handle *p = lua_touserdata(L, 1);
-	return lbox_pushbool(L, popen_send_signal(p, SIGTERM) == 0);
+	// XXX: check for NULL? Or in Lua?
+	return luaT_popen_pushbool(L, popen_send_signal(p, SIGTERM) == 0);
 }
 
 /**
@@ -240,8 +244,10 @@ static int
 lbox_popen_signal(struct lua_State *L)
 {
 	struct popen_handle *p = lua_touserdata(L, 1);
+	// XXX: check for NULL? Or in Lua?
 	int signo = lua_tonumber(L, 2);
-	return lbox_pushbool(L, popen_send_signal(p, signo) == 0);
+	// XXX: check type? Or in Lua?
+	return luaT_popen_pushbool(L, popen_send_signal(p, signo) == 0);
 }
 
 /**
@@ -259,7 +265,7 @@ lbox_popen_state(struct lua_State *L)
 
 	ret = popen_state(p, &state, &exit_code);
 	if (ret < 0)
-		return lbox_push_error(L);
+		return luaT_popen_push_error(L);
 
 	lua_pushnil(L);
 	lua_pushinteger(L, state);
@@ -292,7 +298,7 @@ lbox_popen_read(struct lua_State *L)
 	ret = popen_read_timeout(handle, buf, count,
 				 flags, timeout);
 	if (ret < 0)
-		return lbox_pushsyserror(L);
+		return luaT_popen_pushsyserror(L);
 
 	lua_pushinteger(L, ret);
 	return 1;
@@ -323,8 +329,8 @@ lbox_popen_write(struct lua_State *L)
 
 	ret = popen_write_timeout(handle, buf, count, flags, timeout);
 	if (ret < 0)
-		return lbox_pushsyserror(L);
-	return lbox_pushbool(L, ret == (ssize_t)count);
+		return luaT_popen_pushsyserror(L);
+	return luaT_popen_pushbool(L, ret == (ssize_t)count);
 }
 
 /**
@@ -342,11 +348,11 @@ lbox_popen_info(struct lua_State *L)
 	struct popen_stat st = { };
 
 	if (popen_stat(handle, &st))
-		return lbox_pushsyserror(L);
+		return luaT_popen_pushsyserror(L);
 
 	ret = popen_state(handle, &state, &exit_code);
 	if (ret < 0)
-		return lbox_pushsyserror(L);
+		return luaT_popen_pushsyserror(L);
 
 	assert(state < POPEN_STATE_MAX);
 
@@ -393,13 +399,17 @@ lbox_popen_info(struct lua_State *L)
  *
  * If there is a running child it get killed first.
  *
- * Returns true if a handle is closed, false otherwise.
+ * Returns true if a handle is closed, nil, err otherwise.
  */
 static int
 lbox_popen_delete(struct lua_State *L)
 {
-	void *handle = lua_touserdata(L, 1);
-	return lbox_pushbool(L, popen_delete(handle) == 0);
+	struct popen_handle *p = lua_touserdata(L, 1);
+	assert(p != NULL);
+	if (popen_delete(p) != 0)
+		return luaT_push_nil_and_error(L);
+	lua_pushboolean(L, true);
+	return 1;
 }
 
 /**
@@ -409,7 +419,7 @@ void
 tarantool_lua_popen_init(struct lua_State *L)
 {
 	static const struct luaL_Reg popen_methods[] = {
-		{ },
+		{NULL, NULL},
 	};
 
 	/* public methods */

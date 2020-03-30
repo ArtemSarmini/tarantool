@@ -13,7 +13,7 @@ local const_char_ptr_t = ffi.typeof('const char *')
 local builtin = popen.builtin
 popen.builtin = nil
 
-local popen_methods = { }
+local popen_methods = {}
 
 local function default_flags()
     local flags = popen.c.flag.NONE
@@ -141,12 +141,19 @@ end
 -- In case if there is a running child process
 -- it will be killed.
 --
+-- The function is idempotent: it may be called successfully
+-- after closing of a handle.
+--
 -- Returns @ret = true if popen object is closed, and
--- @ret = false, @err ~= nil on error.
+-- @ret = nil, @err ~= nil on error.
+--
 popen_methods.close = function(self)
+    if self.cdata == nil then
+        return true
+    end
     local ret, err = builtin.delete(self.cdata)
     if err ~= nil then
-        return false, err
+        return nil, err
     end
     self.cdata = nil
     return true
@@ -157,6 +164,7 @@ end
 --
 -- Returns @ret = true on success,
 -- @ret = false, @err ~= nil on error.
+--
 popen_methods.kill = function(self)
     return builtin.kill(self.cdata)
 end
@@ -166,6 +174,7 @@ end
 --
 -- Returns @ret = true on success,
 -- @ret = false, @err ~= nil on error.
+--
 popen_methods.terminate = function(self)
     return builtin.term(self.cdata)
 end
@@ -175,6 +184,7 @@ end
 --
 -- Returns @ret = true on success,
 -- @ret = false, @err ~= nil on error.
+--
 popen_methods.send_signal = function(self, signo)
     return builtin.signal(self.cdata, signo)
 end
@@ -184,6 +194,7 @@ end
 --
 -- Returns @err = nil, @state = popen.c.state, @exit_code = num,
 -- otherwise @err ~= nil.
+--
 popen_methods.state = function(self)
     return builtin.state(self.cdata)
 end
@@ -192,6 +203,7 @@ end
 -- Wait until a child process get exited.
 --
 -- Returns the same as popen_methods.status.
+--
 popen_methods.wait = function(self)
     local err, state, code
     while true do
@@ -354,6 +366,7 @@ end
 --
 -- Returns ret ~= nil, err = nil on success,
 -- ret = nil, err ~= nil on failure.
+--
 local function popen_reify(opts)
     local cdata, err = builtin.new(opts)
     if err ~= nil then
@@ -375,7 +388,8 @@ local function popen_reify(opts)
     }
 
     setmetatable(handle, {
-        __index     = popen_methods,
+        __index = popen_methods,
+        -- XXX: set gc handler in popen.c or here?
     })
 
     return handle
