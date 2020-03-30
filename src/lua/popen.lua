@@ -204,6 +204,7 @@ end
 -- otherwise @err ~= nil.
 --
 popen_methods.state = function(self)
+    if self.cdata == nil then return closed_popen_handle() end
     return builtin.state(self.cdata)
 end
 
@@ -214,6 +215,7 @@ end
 -- XXX: status -> state?
 --
 popen_methods.wait = function(self)
+    if self.cdata == nil then return closed_popen_handle() end
     local err, state, code
     while true do
         err, state, code = builtin.state(self.cdata)
@@ -239,6 +241,7 @@ end
 -- Returns @res = bytes, err = nil in case if read processed
 -- without errors, @res = nil, @err ~= nil otherwise.
 popen_methods.read2 = function(self, opts)
+    if self.cdata == nil then return closed_popen_handle() end
     local flags = parse_flags("popen:read2",
                               popen.c.flag.NONE,
                               opts['flags'])
@@ -270,6 +273,7 @@ end
 --
 -- Returns @err = nil on success, @err ~= nil otherwise.
 popen_methods.write2 = function(self, opts)
+    if self.cdata == nil then return closed_popen_handle() end
     local flags = parse_flags("popen:write2",
                               popen.c.flag.NONE,
                               opts['flags'])
@@ -295,6 +299,7 @@ end
 --
 -- Returns a result string, or res = nil, @err ~= nil on error.
 popen_methods.read = function(self, stderr, timeout)
+    if self.cdata == nil then return closed_popen_handle() end
     local ibuf = buffer.ibuf()
     local buf = ibuf:reserve(self.read_size)
     local flags
@@ -335,6 +340,7 @@ end
 --
 -- Returns @err = nil on success, @err ~= nil on error.
 popen_methods.write = function(self, str, timeout)
+    if self.cdata == nil then return closed_popen_handle() end
     if timeout == nil then
         timeout = -1
     end
@@ -367,6 +373,7 @@ end
 -- for unexpected errors.
 --
 popen_methods.info = function(self)
+    if self.cdata == nil then return closed_popen_handle() end
     return builtin.info(self.cdata)
 end
 

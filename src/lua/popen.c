@@ -344,6 +344,8 @@ static int
 lbox_popen_state(struct lua_State *L)
 {
 	struct popen_handle *p = lua_touserdata(L, 1);
+	assert(p != NULL);
+
 	int state, exit_code, ret;
 
 	ret = popen_state(p, &state, &exit_code);
@@ -516,7 +518,7 @@ tarantool_lua_popen_init(struct lua_State *L)
 		{ "read",		lbox_popen_read,	},
 		{ "write",		lbox_popen_write,	},
 		{ "info",		lbox_popen_info,	},
-		{ },
+		{ NULL,			NULL			},
 	};
 
 	/* builtin methods */
