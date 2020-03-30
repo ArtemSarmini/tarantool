@@ -166,7 +166,7 @@ end
 -- @ret = nil, @err ~= nil on error.
 --
 popen_methods.kill = function(self)
-    return builtin.signal(self.cdata, popen.c.signal.SIGKILL)
+    return builtin.signal(self.cdata, popen.signal.SIGKILL)
 end
 
 --
@@ -176,7 +176,7 @@ end
 -- @ret = nil, @err ~= nil on error.
 --
 popen_methods.terminate = function(self)
-    return builtin.signal(self.cdata, popen.c.signal.SIGTERM)
+    return builtin.signal(self.cdata, popen.signal.SIGTERM)
 end
 
 --
@@ -185,7 +185,7 @@ end
 -- Returns @ret = true on success,
 -- @ret = nil, @err ~= nil on error.
 --
-popen_methods.send_signal = function(self, signo)
+popen_methods.signal = function(self, signo)
     return builtin.signal(self.cdata, signo)
 end
 

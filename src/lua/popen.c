@@ -41,6 +41,115 @@
 #include "lua/utils.h"
 #include "lua/popen.h"
 
+struct signal_def {
+	const char *signame;
+	int signo;
+};
+
+static struct signal_def signals[] =
+{
+#ifdef SIGHUP
+	{"SIGHUP", SIGHUP},
+#endif
+#ifdef SIGINT
+	{"SIGINT", SIGINT},
+#endif
+#ifdef SIGQUIT
+	{"SIGQUIT", SIGQUIT},
+#endif
+#ifdef SIGILL
+	{"SIGILL", SIGILL},
+#endif
+#ifdef SIGTRAP
+	{"SIGTRAP", SIGTRAP},
+#endif
+#ifdef SIGABRT
+	{"SIGABRT", SIGABRT},
+#endif
+#ifdef SIGIOT
+	{"SIGIOT", SIGIOT},
+#endif
+#ifdef SIGBUS
+	{"SIGBUS", SIGBUS},
+#endif
+#ifdef SIGFPE
+	{"SIGFPE", SIGFPE},
+#endif
+#ifdef SIGKILL
+	{"SIGKILL", SIGKILL},
+#endif
+#ifdef SIGUSR1
+	{"SIGUSR1", SIGUSR1},
+#endif
+#ifdef SIGSEGV
+	{"SIGSEGV", SIGSEGV},
+#endif
+#ifdef SIGUSR2
+	{"SIGUSR2", SIGUSR2},
+#endif
+#ifdef SIGPIPE
+	{"SIGPIPE", SIGPIPE},
+#endif
+#ifdef SIGALRM
+	{"SIGALRM", SIGALRM},
+#endif
+#ifdef SIGTERM
+	{"SIGTERM", SIGTERM},
+#endif
+#ifdef SIGSTKFLT
+	{"SIGSTKFLT", SIGSTKFLT},
+#endif
+#ifdef SIGCHLD
+	{"SIGCHLD", SIGCHLD},
+#endif
+#ifdef SIGCONT
+	{"SIGCONT", SIGCONT},
+#endif
+#ifdef SIGSTOP
+	{"SIGSTOP", SIGSTOP},
+#endif
+#ifdef SIGTSTP
+	{"SIGTSTP", SIGTSTP},
+#endif
+#ifdef SIGTTIN
+	{"SIGTTIN", SIGTTIN},
+#endif
+#ifdef SIGTTOU
+	{"SIGTTOU", SIGTTOU},
+#endif
+#ifdef SIGURG
+	{"SIGURG", SIGURG},
+#endif
+#ifdef SIGXCPU
+	{"SIGXCPU", SIGXCPU},
+#endif
+#ifdef SIGXFSZ
+	{"SIGXFSZ", SIGXFSZ},
+#endif
+#ifdef SIGVTALRM
+	{"SIGVTALRM", SIGVTALRM},
+#endif
+#ifdef SIGPROF
+	{"SIGPROF", SIGPROF},
+#endif
+#ifdef SIGWINCH
+	{"SIGWINCH", SIGWINCH},
+#endif
+#ifdef SIGIO
+	{"SIGIO", SIGIO},
+#endif
+#ifdef SIGPOLL
+	{"SIGPOLL", SIGPOLL},
+#endif
+#ifdef SIGPWR
+	{"SIGPWR", SIGPWR},
+#endif
+#ifdef SIGSYS
+	{"SIGSYS", SIGSYS},
+#endif
+	{NULL, 0},
+};
+
 static inline int
 luaT_popen_pushsyserror(struct lua_State *L)
 {
@@ -213,7 +322,7 @@ lbox_popen_signal(struct lua_State *L)
 	struct popen_handle *p = lua_touserdata(L, 1);
 	assert(p != NULL);
 	if (!lua_isnumber(L, 2))
-		return luaL_error(L, "Bad params, use: ph:send_signal(signo)");
+		return luaL_error(L, "Bad params, use: ph:signal(signo)");
 
 	int signo = lua_tonumber(L, 2);
 
@@ -420,6 +529,15 @@ tarantool_lua_popen_init(struct lua_State *L)
 	/*
 	 * Popen constants.
 	 */
+
+	/* Signals. */
+	lua_newtable(L);
+	for (int i = 0; signals[i].signame != NULL; ++i) {
+		lua_pushinteger(L, signals[i].signo);
+		lua_setfield(L, -2, signals[i].signame);
+	}
+	lua_setfield(L, -2, "signal");
+
 #define lua_gen_const(_n, _v)		\
 	lua_pushliteral(L, _n);		\
 	lua_pushinteger(L, _v);		\
@@ -461,114 +579,6 @@ tarantool_lua_popen_init(struct lua_State *L)
 	lua_gen_const("EXITED",			POPEN_STATE_EXITED);
 	lua_gen_const("SIGNALED",		POPEN_STATE_SIGNALED);
 	lua_settable(L, -3);
-
-	lua_pushliteral(L, "signal");
-	lua_newtable(L);
-#define lua_gen_signal(_signo)		\
-	lua_gen_const(#_signo, _signo)
-
-#ifdef SIGHUP
-	lua_gen_signal(SIGHUP);
-#endif
-#ifdef SIGINT
-	lua_gen_signal(SIGINT);
-#endif
-#ifdef SIGQUIT
-	lua_gen_signal(SIGQUIT);
-#endif
-#ifdef SIGILL
-	lua_gen_signal(SIGILL);
-#endif
-#ifdef SIGTRAP
-	lua_gen_signal(SIGTRAP);
-#endif
-#ifdef SIGABRT
-	lua_gen_signal(SIGABRT);
-#endif
-#ifdef SIGIOT
-	lua_gen_signal(SIGIOT);
-#endif
-#ifdef SIGBUS
-	lua_gen_signal(SIGBUS);
-#endif
-#ifdef SIGFPE
-	lua_gen_signal(SIGFPE);
-#endif
-#ifdef SIGKILL
-	lua_gen_signal(SIGKILL);
-#endif
-#ifdef SIGUSR1
-	lua_gen_signal(SIGUSR1);
-#endif
-#ifdef SIGSEGV
-	lua_gen_signal(SIGSEGV);
-#endif
-#ifdef SIGUSR2
-	lua_gen_signal(SIGUSR2);
-#endif
-#ifdef SIGPIPE
-	lua_gen_signal(SIGPIPE);
-#endif
-#ifdef SIGALRM
-	lua_gen_signal(SIGALRM);
-#endif
-#ifdef SIGTERM
-	lua_gen_signal(SIGTERM);
-#endif
-#ifdef SIGSTKFLT
-	lua_gen_signal(SIGSTKFLT);
-#endif
-#ifdef SIGCHLD
-	lua_gen_signal(SIGCHLD);
-#endif
-#ifdef SIGCONT
-	lua_gen_signal(SIGCONT);
-#endif
-#ifdef SIGSTOP
-	lua_gen_signal(SIGSTOP);
-#endif
-#ifdef SIGTSTP
-	lua_gen_signal(SIGTSTP);
-#endif
-#ifdef SIGTTIN
-	lua_gen_signal(SIGTTIN);
-#endif
-#ifdef SIGTTOU
-	lua_gen_signal(SIGTTOU);
-#endif
-#ifdef SIGURG
-	lua_gen_signal(SIGURG);
-#endif
-#ifdef SIGXCPU
-	lua_gen_signal(SIGXCPU);
-#endif
-#ifdef SIGXFSZ
-	lua_gen_signal(SIGXFSZ);
-#endif
-#ifdef SIGVTALRM
-	lua_gen_signal(SIGVTALRM);
-#endif
-#ifdef SIGPROF
-	lua_gen_signal(SIGPROF);
-#endif
-#ifdef SIGWINCH
-	lua_gen_signal(SIGWINCH);
-#endif
-#ifdef SIGIO
-	lua_gen_signal(SIGIO);
-#endif
-#ifdef SIGPOLL
-	lua_gen_signal(SIGPOLL);
-#endif
-#ifdef SIGPWR
-	lua_gen_signal(SIGPWR);
-#endif
-#ifdef SIGSYS
-	lua_gen_signal(SIGSYS);
-#endif
-#undef lua_gen_signal
-	lua_settable(L, -3);
-
 #undef lua_gen_const
 
 	lua_settable(L, -3);
