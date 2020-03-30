@@ -201,39 +201,6 @@ lbox_popen_new(struct lua_State *L)
 }
 
 /**
- * lbox_fio_popen_kill - kill popen's child process
- * @handle:	a handle carries child process to kill
- *
- * Returns true if process is killed and false
- * otherwise. Note the process is simply signaled
- * and it doesn't mean it is killed immediately,
- * Poll lbox_fio_pstatus if need to find out when
- * exactly the child is reaped out.
- */
-static int
-lbox_popen_kill(struct lua_State *L)
-{
-	struct popen_handle *p = lua_touserdata(L, 1);
-	// XXX: check for NULL? Or in Lua?
-	return luaT_popen_pushbool(L, popen_send_signal(p, SIGKILL) == 0);
-}
-
-/**
- * lbox_fio_popen_term - terminate popen's child process
- * @handle:	a handle carries child process to terminate
- *
- * Returns true if process is terminated and false
- * otherwise.
- */
-static int
-lbox_popen_term(struct lua_State *L)
-{
-	struct popen_handle *p = lua_touserdata(L, 1);
-	// XXX: check for NULL? Or in Lua?
-	return luaT_popen_pushbool(L, popen_send_signal(p, SIGTERM) == 0);
-}
-
-/**
  * lbox_fio_popen_signal - send signal to a child process
  * @handle:	a handle carries child process to terminate
  * @signo:	signal number to send
@@ -244,10 +211,17 @@ static int
 lbox_popen_signal(struct lua_State *L)
 {
 	struct popen_handle *p = lua_touserdata(L, 1);
-	// XXX: check for NULL? Or in Lua?
+	assert(p != NULL);
+	if (!lua_isnumber(L, 2))
+		return luaL_error(L, "Bad params, use: ph:send_signal(signo)");
+
 	int signo = lua_tonumber(L, 2);
-	// XXX: check type? Or in Lua?
-	return luaT_popen_pushbool(L, popen_send_signal(p, signo) == 0);
+
+	if (popen_send_signal(p, signo) != 0)
+		return luaT_push_nil_and_error(L);
+
+	lua_pushboolean(L, true);
+	return 1;
 }
 
 /**
@@ -428,8 +402,6 @@ tarantool_lua_popen_init(struct lua_State *L)
 	static const struct luaL_Reg builtin_methods[] = {
 		{ "new",		lbox_popen_new,		},
 		{ "delete",		lbox_popen_delete,	},
-		{ "kill",		lbox_popen_kill,	},
-		{ "term",		lbox_popen_term,	},
 		{ "signal",		lbox_popen_signal,	},
 		{ "state",		lbox_popen_state,	},
 		{ "read",		lbox_popen_read,	},

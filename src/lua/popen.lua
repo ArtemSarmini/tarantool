@@ -163,27 +163,27 @@ end
 -- Kill a child process
 --
 -- Returns @ret = true on success,
--- @ret = false, @err ~= nil on error.
+-- @ret = nil, @err ~= nil on error.
 --
 popen_methods.kill = function(self)
-    return builtin.kill(self.cdata)
+    return builtin.signal(self.cdata, popen.c.signal.SIGKILL)
 end
 
 --
 -- Terminate a child process
 --
 -- Returns @ret = true on success,
--- @ret = false, @err ~= nil on error.
+-- @ret = nil, @err ~= nil on error.
 --
 popen_methods.terminate = function(self)
-    return builtin.term(self.cdata)
+    return builtin.signal(self.cdata, popen.c.signal.SIGTERM)
 end
 
 --
 -- Send signal with number @signo to a child process
 --
 -- Returns @ret = true on success,
--- @ret = false, @err ~= nil on error.
+-- @ret = nil, @err ~= nil on error.
 --
 popen_methods.send_signal = function(self, signo)
     return builtin.signal(self.cdata, signo)
