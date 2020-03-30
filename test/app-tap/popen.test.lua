@@ -10,7 +10,7 @@ test:plan(1)
 -- Trivial echo output.
 --
 local function test_trivial_echo_output(test)
-    test:plan(6)
+    test:plan(7)
 
     local script = 'echo -n 1 2 3 4 5'
     local exp_script_output = '1 2 3 4 5'
@@ -30,6 +30,12 @@ local function test_trivial_echo_output(test)
     -- Verify that :close() is idempotent.
     local res, err = ph:close()
     test:is_deeply({res, err}, {true, nil}, 'close() is idempotent')
+
+    -- Sending a signal using a closed handle gives an error.
+    local exp_err = 'popen: attempt to operate on a closed handle'
+    local res, err = ph:signal(popen.signal.SIGTERM)
+    test:is_deeply({res, err}, {nil, exp_err},
+                   'signal() on closed handle gives an error')
 end
 
 test:test('trivial_echo_output', test_trivial_echo_output)

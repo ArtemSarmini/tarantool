@@ -115,6 +115,7 @@ end
 
 --
 -- Parse "mode" string to flags
+--
 local function parse_mode(epfx, flags, mode)
     if mode == nil then
         return flags
@@ -134,6 +135,10 @@ local function parse_mode(epfx, flags, mode)
         end
     end
     return flags
+end
+
+local function closed_popen_handle()
+    return nil, 'popen: attempt to operate on a closed handle'
 end
 
 --
@@ -166,6 +171,7 @@ end
 -- @ret = nil, @err ~= nil on error.
 --
 popen_methods.kill = function(self)
+    if self.cdata == nil then return closed_popen_handle() end
     return builtin.signal(self.cdata, popen.signal.SIGKILL)
 end
 
@@ -176,6 +182,7 @@ end
 -- @ret = nil, @err ~= nil on error.
 --
 popen_methods.terminate = function(self)
+    if self.cdata == nil then return closed_popen_handle() end
     return builtin.signal(self.cdata, popen.signal.SIGTERM)
 end
 
@@ -186,6 +193,7 @@ end
 -- @ret = nil, @err ~= nil on error.
 --
 popen_methods.signal = function(self, signo)
+    if self.cdata == nil then return closed_popen_handle() end
     return builtin.signal(self.cdata, signo)
 end
 
@@ -203,6 +211,7 @@ end
 -- Wait until a child process get exited.
 --
 -- Returns the same as popen_methods.status.
+-- XXX: status -> state?
 --
 popen_methods.wait = function(self)
     local err, state, code
