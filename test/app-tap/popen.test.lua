@@ -41,8 +41,9 @@ end
 -- Test info and force killing of a child process.
 --
 local function test_kill_child_process(test)
-    test:plan(2)
+    test:plan(10)
 
+    -- Run and kill a process.
     local script = 'while true; do sleep 10; done'
     local ph = popen.posix(script, 'r')
     local res, err = ph:kill()
@@ -51,17 +52,46 @@ local function test_kill_child_process(test)
     local SIGNALED = popen.c.state.SIGNALED
     local SIGKILL = popen.signal.SIGKILL
 
+    -- Wait for the process termination, verify wait() return
+    -- values.
     local state, exit_code = ph:wait()
     test:is_deeply({state, exit_code}, {SIGNALED, SIGKILL},
-                   'wait() gave signal information')
-    --[[
-    ph:state()
-    info = ph:info()
-    info.command
-    info.state
-    info.flags
-    info.exit_code
-    ]]--
+                   'wait() return values')
+
+    -- Verify state() return values for a terminated process.
+    local state, exit_code = ph:state()
+    test:is_deeply({state, exit_code}, {SIGNALED, SIGKILL},
+                   'state() return values')
+
+    -- Verify info for a terminated process.
+    local info = ph:info()
+    test:is(info.pid, -1, 'info.pid is -1')
+
+    -- XXX: A shell script should be in quotes and quote escaped.
+    -- Or kinda 'SHELL command' to don't confuse anybody.
+    test:is(info.command, 'sh -c ' .. script, 'verify info.script')
+
+    -- XXX: make flags readable (normalized opts), them it will be
+    -- easier to test them
+    -- test:is(info.flags, <...>, 'verify info.flags')
+
+    -- XXX: look inconsistent: here 'signaled' string, SIGNALED
+    -- constant above
+    test:is(info.state, 'signaled', 'verify info.state')
+    test:is(info.exit_code, SIGKILL, 'veridy info.exit_code')
+
+    -- STDIN is NOT requested to be available for writing, so our
+    -- end is set to -1 (childs end is closed).
+    test:ok(info.stdin == -1, 'verify that stdin is closed')
+
+    -- STDOUT requested to be available for reading, so the file
+    -- descriptor should be available on our end.
+    test:ok(info.stdout >= 0, 'verify stdout is available')
+
+    -- STDERR is opened too, when STDOUT is requested for reading,
+    -- to provide ability to use '2>&1' statement.
+    test:ok(info.stderr >= 0, 'verify stderr is available')
+
     assert(ph:close())
 end
 
