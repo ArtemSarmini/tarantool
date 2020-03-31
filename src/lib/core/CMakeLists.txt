@@ -29,6 +29,7 @@ set(core_sources
     port.c
     decimal.c
     mp_decimal.c
+    mp_uuid.c
 )
 
 if (TARGET_OS_NETBSD)

@@ -1,7 +1,5 @@
-#ifndef TARANTOOL_LIB_CORE_MP_USER_TYPES_H_INCLUDED
-#define TARANTOOL_LIB_CORE_MP_USER_TYPES_H_INCLUDED
 /*
- * Copyright 2019, Tarantool AUTHORS, please see AUTHORS file.
+ * Copyright 2020, Tarantool AUTHORS, please see AUTHORS file.
  *
  * Redistribution and use in source and binary forms, with or
  * without modification, are permitted provided that the following
@@ -31,19 +29,47 @@
  * SUCH DAMAGE.
  */
 
+#include "mp_uuid.h"
 #include "msgpuck.h"
+#include "mp_extension_types.h"
+#include "lib/uuid/tt_uuid.h"
 
-/**
- * MessagePack extension type. Used as a subtype after MP_EXT
- * format specifier.
- * Values in range [-128, -1] are reserved.
- * You may assign values in range [0, 127]
- */
-enum mp_extension_type {
-    MP_UNKNOWN_EXTENSION = 0,
-    MP_DECIMAL = 1,
-    MP_UUID = 2,
-    mp_extension_type_MAX,
-};
+inline uint32_t
+mp_sizeof_uuid()
+{
+	return mp_sizeof_ext(sizeof(struct tt_uuid));
+}
 
-#endif
+struct tt_uuid *
+uuid_unpack(const char **data, uint32_t len, struct tt_uuid *uuid)
+{
+	if (len != sizeof(*uuid))
+		return NULL;
+	memcpy(uuid, *data, sizeof(*uuid));
+	if (tt_uuid_validate(uuid) != 0)
+		return NULL;
+	*data += sizeof(*uuid);
+	return uuid;
+}
+
+struct tt_uuid *
+mp_decode_uuid(const char **data, struct tt_uuid *uuid)
+{
+	if (mp_typeof(**data) != MP_EXT)
+		return NULL;
+	int8_t type;
+	const char *const svp = *data;
+
+	uint32_t len = mp_decode_extl(data, &type);
+	if (type != MP_UUID || uuid_unpack(data, len, uuid) == NULL) {
+		*data = svp;
+		return NULL;
+	}
+	return uuid;
+}
+
+char *
+mp_encode_uuid(char *data, const struct tt_uuid *uuid)
+{
+	return mp_encode_ext(data, MP_UUID, (char *)uuid, sizeof(*uuid));
+}
