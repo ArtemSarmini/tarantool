@@ -41,6 +41,8 @@
 #include "lua/utils.h"
 #include "lua/popen.h"
 
+static const char *popenlib_name = "popen";
+
 struct signal_def {
 	const char *signame;
 	int signo;
@@ -150,6 +152,8 @@ static struct signal_def signals[] =
 	{NULL, 0},
 };
 
+/* {{{ Helpers */
+
 static inline int
 luaT_popen_pushsyserror(struct lua_State *L)
 {
@@ -178,6 +182,38 @@ luaT_popen_pushbool(struct lua_State *L, bool res)
 	lua_pushboolean(L, true);
 	return 1;
 }
+
+/**
+ * Push popen handle into the Lua stack.
+ *
+ * Return 1 -- amount of pushed values.
+ */
+static int
+luaT_push_popen_handle(struct lua_State *L, struct popen_handle *p)
+{
+	*(struct popen_handle **)lua_newuserdata(L, sizeof(p)) = p;
+	luaL_getmetatable(L, popenlib_name);
+	lua_setmetatable(L, -2);
+	return 1;
+}
+
+/**
+ * Extract popen handle from the Lua stack.
+ *
+ * Return NULL in case of unexpected type.
+ */
+static struct popen_handle *
+luaT_check_popen_handle(struct lua_State *L, int idx)
+{
+	struct popen_handle **handle_ptr = luaL_checkudata(L, idx,
+							   popenlib_name);
+	if (handle_ptr == NULL)
+		return NULL;
+	assert(*handle_ptr != NULL);
+	return *handle_ptr;
+}
+
+/* }}} */
 
 /**
  * lbox_fio_popen_new - creates a new popen handle and runs a command inside
@@ -304,8 +340,7 @@ lbox_popen_new(struct lua_State *L)
 	if (!handle)
 		return luaT_popen_pushsyserror(L);
 
-	lua_pushlightuserdata(L, handle);
-	// XXX: gc handler?
+	luaT_push_popen_handle(L, handle);
 	return 1;
 }
 
@@ -319,9 +354,8 @@ lbox_popen_new(struct lua_State *L)
 static int
 lbox_popen_signal(struct lua_State *L)
 {
-	struct popen_handle *p = lua_touserdata(L, 1);
-	assert(p != NULL);
-	if (!lua_isnumber(L, 2))
+	struct popen_handle *p;
+	if ((p = luaT_check_popen_handle(L, 1)) == NULL || !lua_isnumber(L, 2))
 		return luaL_error(L, "Bad params, use: ph:signal(signo)");
 
 	int signo = lua_tonumber(L, 2);
@@ -342,8 +376,9 @@ lbox_popen_signal(struct lua_State *L)
 static int
 lbox_popen_state(struct lua_State *L)
 {
-	struct popen_handle *p = lua_touserdata(L, 1);
-	assert(p != NULL);
+	struct popen_handle *p;
+	if ((p = luaT_check_popen_handle(L, 1)) == NULL)
+		return luaL_error(L, "Bad params, use: ph:state()");
 
 	int state, exit_code;
 
@@ -368,7 +403,11 @@ lbox_popen_state(struct lua_State *L)
 static int
 lbox_popen_read(struct lua_State *L)
 {
-	struct popen_handle *handle = lua_touserdata(L, 1);
+	struct popen_handle *handle;
+	if ((handle = luaT_check_popen_handle(L, 1)) == NULL)
+		return luaL_error(L, "Bad params, use: ph:read(<...>)");
+
+	// XXX: proper type checking
 	uint32_t ctypeid;
 	void *buf =  *(char **)luaL_checkcdata(L, 2, &ctypeid);
 	size_t count = lua_tonumber(L, 3);
@@ -398,7 +437,11 @@ lbox_popen_read(struct lua_State *L)
 static int
 lbox_popen_write(struct lua_State *L)
 {
-	struct popen_handle *handle = lua_touserdata(L, 1);
+	struct popen_handle *handle;
+	if ((handle = luaT_check_popen_handle(L, 1)) == NULL)
+		return luaL_error(L, "Bad params, use: ph:write(<...>)");
+
+	// XXX: proper type checking
 	void *buf = (void *)lua_tostring(L, 2);
 	uint32_t ctypeid = 0;
 	if (buf == NULL)
@@ -424,8 +467,9 @@ lbox_popen_write(struct lua_State *L)
 static int
 lbox_popen_info(struct lua_State *L)
 {
-	struct popen_handle *handle = lua_touserdata(L, 1);
-	assert(handle != NULL);
+	struct popen_handle *handle;
+	if ((handle = luaT_check_popen_handle(L, 1)) == NULL)
+		return luaL_error(L, "Bad params, use: ph:info()");
 
 	int state, exit_code;
 	struct popen_stat st = {};
@@ -485,8 +529,10 @@ lbox_popen_info(struct lua_State *L)
 static int
 lbox_popen_delete(struct lua_State *L)
 {
-	struct popen_handle *p = lua_touserdata(L, 1);
-	assert(p != NULL);
+	struct popen_handle *p;
+	if ((p = luaT_check_popen_handle(L, 1)) == NULL)
+		return luaL_error(L, "Bad params, use: ph:close()");
+
 	if (popen_delete(p) != 0)
 		return luaT_push_nil_and_error(L);
 	lua_pushboolean(L, true);
@@ -499,13 +545,13 @@ lbox_popen_delete(struct lua_State *L)
 void
 tarantool_lua_popen_init(struct lua_State *L)
 {
+	/* Public methods. */
 	static const struct luaL_Reg popen_methods[] = {
 		{NULL, NULL},
 	};
-
-	/* public methods */
 	luaL_register_module(L, "popen", popen_methods);
 
+	/* Builtin methods. */
 	static const struct luaL_Reg builtin_methods[] = {
 		{ "new",		lbox_popen_new,		},
 		{ "delete",		lbox_popen_delete,	},
@@ -516,13 +562,16 @@ tarantool_lua_popen_init(struct lua_State *L)
 		{ "info",		lbox_popen_info,	},
 		{ NULL,			NULL			},
 	};
-
-	/* builtin methods */
-	lua_pushliteral(L, "builtin");
 	lua_newtable(L);
-
 	luaL_register(L, NULL, builtin_methods);
-	lua_settable(L, -3);
+	lua_setfield(L, -2, "builtin");
+
+	/* Popen handle userdata. */
+	static const struct luaL_Reg popen_handle_methods[] = {
+		{NULL, NULL},
+	};
+	luaL_register_type(L, popenlib_name, popen_handle_methods);
+	// XXX: gc handler?
 
 	/*
 	 * Popen constants.

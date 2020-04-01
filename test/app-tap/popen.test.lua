@@ -6,6 +6,8 @@ local tap = require('tap')
 local test = tap.test('popen')
 test:plan(2)
 
+-- XXX: add bad api usage cases
+
 --
 -- Trivial echo output.
 --
