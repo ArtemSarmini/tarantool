@@ -1,18 +1,66 @@
 #!/usr/bin/env tarantool
 
 local popen = require('popen')
+local ffi = require('ffi')
+local errno = require('errno')
+local fiber = require('fiber')
+local clock = require('clock')
 local tap = require('tap')
 
-local test = tap.test('popen')
-test:plan(2)
+-- For process_is_alive().
+ffi.cdef([[
+    int
+    kill(pid_t pid, int signo);
+]])
 
--- XXX: add bad api usage cases
+-- {{{ Helpers
+
+--
+-- Verify whether a process is alive.
+--
+local function process_is_alive(pid)
+    local rc = ffi.C.kill(pid, 0)
+    return rc == 0 or errno() ~= errno.ESRCH
+end
+
+--
+-- Verify whether a process is dead or not exist.
+--
+local function process_is_dead(pid)
+    return not process_is_alive(pid)
+end
+
+--
+-- Yield the current fiber until a condition becomes true or
+-- timeout (60 seconds) exceeds.
+--
+-- Don't use test-run's function to allow to run the test w/o
+-- test-run. It is often convenient during debugging.
+--
+local function wait_cond(func, ...)
+    local timeout = 60
+    local delay = 0.1
+
+    local deadline = clock.monotonic() + timeout
+    local res
+
+    while true do
+        res = {func(...)}
+        -- Success or timeout.
+        if res[1] or clock.monotonic() > deadline then break end
+        fiber.sleep(delay)
+    end
+
+    return unpack(res, 1, table.maxn(res))
+end
+
+-- }}}
 
 --
 -- Trivial echo output.
 --
 local function test_trivial_echo_output(test)
-    test:plan(6)
+    test:plan(7)
 
     local script = 'echo -n 1 2 3 4 5'
     local exp_script_output = '1 2 3 4 5'
@@ -20,6 +68,7 @@ local function test_trivial_echo_output(test)
     -- Start echo, wait it to finish, read the output and close
     -- the handler.
     local ph = popen.posix(script, 'r')
+    local pid = ph:info().pid
     local state, exit_code = ph:wait()
     test:is(state, popen.c.state.EXITED, 'verify exit status')
     test:is(exit_code, 0, 'verify exit code')
@@ -27,6 +76,10 @@ local function test_trivial_echo_output(test)
     test:is(script_output, exp_script_output, 'verify script output')
     local res, err = ph:close()
     test:is_deeply({res, err}, {true, nil}, 'close() successful')
+
+    -- Verify that the process is actually killed.
+    local is_dead = wait_cond(process_is_dead, pid)
+    test:ok(is_dead, 'the process is killed after close()')
 
     -- Verify that :close() is idempotent.
     local res, err = ph:close()
@@ -97,7 +150,35 @@ local function test_kill_child_process(test)
     assert(ph:close())
 end
 
+--
+-- Test that a loss handle does not leak (at least the
+-- corresponding process is killed).
+--
+local function test_gc(test)
+    test:plan(1)
+
+    -- Run a process, verify that it exists.
+    local script = 'while true; do sleep 10; done'
+    local ph = popen.posix(script, 'r')
+    local pid = ph:info().pid
+    assert(process_is_alive(pid))
+
+    -- Loss the handle.
+    ph = nil -- luacheck: no unused
+    collectgarbage()
+
+    -- Verify that the process is actually killed.
+    local is_dead = wait_cond(process_is_dead, pid)
+    test:ok(is_dead, 'the process is killed when the handle is collected')
+end
+
+local test = tap.test('popen')
+test:plan(3)
+
+-- XXX: add bad api usage cases
+
 test:test('trivial_echo_output', test_trivial_echo_output)
 test:test('kill_child_process', test_kill_child_process)
+test:test('gc', test_gc)
 
 os.exit(test:check() and 0 or 1)

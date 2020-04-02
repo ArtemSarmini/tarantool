@@ -535,8 +535,31 @@ lbox_popen_delete(struct lua_State *L)
 
 	if (popen_delete(p) != 0)
 		return luaT_push_nil_and_error(L);
+
+	/*
+	 * The handle is freed. Remove the GC handler to don't
+	 * free it twice.
+	 */
+	lua_pushnil(L);
+	lua_setmetatable(L, 1);
+
 	lua_pushboolean(L, true);
 	return 1;
+}
+
+/**
+ * lbox_popen_gc - GC handler, free popen handle resources
+ * @handle:	a handle to free
+ *
+ * Kills a child if there is one.
+ */
+static int
+lbox_popen_gc(struct lua_State *L)
+{
+	struct popen_handle *p = luaT_check_popen_handle(L, 1);
+	assert(p != NULL);
+	popen_delete(p);
+	return 0;
 }
 
 /**
@@ -568,10 +591,10 @@ tarantool_lua_popen_init(struct lua_State *L)
 
 	/* Popen handle userdata. */
 	static const struct luaL_Reg popen_handle_methods[] = {
+		{"__gc", lbox_popen_gc},
 		{NULL, NULL},
 	};
 	luaL_register_type(L, popenlib_name, popen_handle_methods);
-	// XXX: gc handler?
 
 	/*
 	 * Popen constants.

@@ -410,7 +410,6 @@ local function popen_reify(opts)
 
     setmetatable(handle, {
         __index = popen_methods,
-        -- XXX: set gc handler in popen.c or here?
     })
 
     return handle
