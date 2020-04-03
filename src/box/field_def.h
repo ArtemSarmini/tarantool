@@ -60,6 +60,7 @@ enum field_type {
 	FIELD_TYPE_VARBINARY,
 	FIELD_TYPE_SCALAR,
 	FIELD_TYPE_DECIMAL,
+	FIELD_TYPE_UUID,
 	FIELD_TYPE_ARRAY,
 	FIELD_TYPE_MAP,
 	field_type_MAX
@@ -179,6 +180,21 @@ field_mp_type_is_compatible(enum field_type type, const char *data,
 		} else {
 			return false;
 		}
+	}
+}
+
+bool
+field_uuid_value_is_compatible(const char *data);
+
+/** Check whether a value may be stored in field of given type. */
+static inline bool
+field_value_is_compatible(enum field_type type, const char *data)
+{
+	switch (type) {
+	case FIELD_TYPE_UUID:
+		return field_uuid_value_is_compatible(data);
+	default:
+		return true;
 	}
 }
 

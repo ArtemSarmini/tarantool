@@ -35,6 +35,7 @@
 #include <math.h>
 #include "lib/core/decimal.h"
 #include "lib/core/mp_decimal.h"
+#include "lib/core/mp_uuid.h"
 #include "lib/core/mp_extension_types.h"
 
 /* {{{ tuple_compare */
@@ -74,6 +75,7 @@ enum mp_class {
 	MP_CLASS_NUMBER,
 	MP_CLASS_STR,
 	MP_CLASS_BIN,
+	MP_CLASS_UUID,
 	MP_CLASS_ARRAY,
 	MP_CLASS_MAP,
 	mp_class_max,
@@ -96,6 +98,7 @@ static enum mp_class mp_classes[] = {
 static enum mp_class mp_ext_classes[] = {
 	/* .MP_UNKNOWN_EXTENSION = */ mp_class_max, /* unsupported */
 	/* .MP_DECIMAL		 = */ MP_CLASS_NUMBER,
+	/* .MP_UUID		 = */ MP_CLASS_UUID,
 };
 
 static enum mp_class
@@ -110,6 +113,7 @@ mp_extension_class(const char *data)
 	assert(mp_typeof(*data) == MP_EXT);
 	int8_t type;
 	mp_decode_extl(&data, &type);
+	assert(type >= 0 && type < mp_extension_type_MAX);
 	return mp_ext_classes[type];
 }
 
@@ -378,6 +382,61 @@ mp_compare_bin(const char *field_a, const char *field_b)
 	return COMPARE_RESULT(size_a, size_b);
 }
 
+static int
+mp_compare_uuid_with_type(const char *field_a, enum mp_type type_a,
+			  const char *field_b, enum mp_type type_b)
+{
+	struct tt_uuid uuid_a, uuid_b;
+	struct tt_uuid *ret;
+	const char *str;
+	uint32_t len;
+	int rc;
+	switch (type_a) {
+	case MP_STR:
+		str = mp_decode_str(&field_a, &len);
+		rc = tt_uuid_from_lstring(str, len, &uuid_a);
+		assert(rc == 0);
+		break;
+	case MP_BIN:
+		str = mp_decode_bin(&field_a, &len);
+		ret = uuid_unpack(&str, len, &uuid_a);
+		assert(ret != NULL);
+		break;
+	case MP_EXT:
+		ret = mp_decode_uuid(&field_a, &uuid_a);
+		assert(ret != NULL);
+		break;
+	default:
+		unreachable();
+	}
+	switch (type_b) {
+	case MP_STR:
+		str = mp_decode_str(&field_b, &len);
+		rc = tt_uuid_from_lstring(str, len, &uuid_b);
+		assert(rc == 0);
+		break;
+	case MP_BIN:
+		str = mp_decode_bin(&field_b, &len);
+		ret = uuid_unpack(&str, len, &uuid_b);
+		assert(ret != NULL);
+		break;
+	case MP_EXT:
+		ret = mp_decode_uuid(&field_b, &uuid_b);
+		assert(ret != NULL);
+		break;
+	default:
+		unreachable();
+	}
+	return tt_uuid_compare(&uuid_a, &uuid_b);
+}
+
+static inline int
+mp_compare_uuid(const char *field_a, const char *field_b)
+{
+	return mp_compare_uuid_with_type(field_a, mp_typeof(*field_a),
+					 field_b, mp_typeof(*field_b));
+}
+
 typedef int (*mp_compare_f)(const char *, const char *);
 static mp_compare_f mp_class_comparators[] = {
 	/* .MP_CLASS_NIL    = */ NULL,
@@ -463,6 +522,8 @@ tuple_compare_field(const char *field_a, const char *field_b,
 		       mp_compare_scalar(field_a, field_b);
 	case FIELD_TYPE_DECIMAL:
 		return mp_compare_decimal(field_a, field_b);
+	case FIELD_TYPE_UUID:
+		return mp_compare_uuid(field_a, field_b);
 	default:
 		unreachable();
 		return 0;
@@ -501,6 +562,9 @@ tuple_compare_field_with_type(const char *field_a, enum mp_type a_type,
 	case FIELD_TYPE_DECIMAL:
 		return mp_compare_number_with_type(field_a, a_type,
 						   field_b, b_type);
+	case FIELD_TYPE_UUID:
+		return mp_compare_uuid_with_type(field_a, a_type,
+						 field_b, b_type);
 	default:
 		unreachable();
 		return 0;
@@ -1578,6 +1642,21 @@ hint_decimal(decimal_t *dec)
 	return hint_create(MP_CLASS_NUMBER, val);
 }
 
+static inline hint_t
+hint_uuid(struct tt_uuid *uuid)
+{
+	/* Simply take the first part of the UUID as hint. */
+	uint64_t val = 0;
+	val |= uuid->time_low;
+	val <<= sizeof(uuid->time_mid) * CHAR_BIT;
+	val |= uuid->time_mid;
+	val <<= sizeof(uuid->time_hi_and_version) * CHAR_BIT;
+	val |= uuid->time_hi_and_version;
+	/* Make space for class representation. */
+	val >>= HINT_CLASS_BITS;
+	return hint_create(MP_CLASS_UUID, val);
+}
+
 static inline uint64_t
 hint_str_raw(const char *s, uint32_t len)
 {
@@ -1699,6 +1778,45 @@ field_hint_decimal(const char *field)
 }
 
 static inline hint_t
+field_hint_uuid(const char *field)
+{
+	const char *str;
+	uint32_t len;
+	struct tt_uuid uuid;
+	struct tt_uuid *ret;
+	switch(mp_typeof(*field)) {
+	case MP_STR:
+	{
+		str = mp_decode_str(&field, &len);
+		int rc = tt_uuid_from_lstring(str, len, &uuid);
+		assert(rc == 0);
+		(void) rc;
+		break;
+	}
+	case MP_BIN:
+		str = mp_decode_bin(&field, &len);
+		/*
+		 * Binary UUID representation shares the same
+		 * format with UUID data after MP_EXT header.
+		 */
+		ret = uuid_unpack(&str, len, &uuid);
+		assert(ret != NULL);
+		break;
+	case MP_EXT:
+		/*
+		 * Must be a UUID. Otherwise mp_decode_uuid() will
+		 * return NULL.
+		 */
+		ret = mp_decode_uuid(&field, &uuid);
+		assert(ret != NULL);
+		break;
+	default:
+		unreachable();
+	}
+	return hint_uuid(&uuid);
+}
+
+static inline hint_t
 field_hint_string(const char *field, struct coll *coll)
 {
 	assert(mp_typeof(*field) == MP_STR);
@@ -1782,6 +1900,8 @@ field_hint(const char *field, struct coll *coll)
 		return field_hint_scalar(field, coll);
 	case FIELD_TYPE_DECIMAL:
 		return field_hint_decimal(field);
+	case FIELD_TYPE_UUID:
+		return field_hint_uuid(field);
 	default:
 		unreachable();
 	}
@@ -1892,6 +2012,9 @@ key_def_set_hint_func(struct key_def *def)
 		break;
 	case FIELD_TYPE_DECIMAL:
 		key_def_set_hint_func<FIELD_TYPE_DECIMAL>(def);
+		break;
+	case FIELD_TYPE_UUID:
+		key_def_set_hint_func<FIELD_TYPE_UUID>(def);
 		break;
 	default:
 		/* Invalid key definition. */
