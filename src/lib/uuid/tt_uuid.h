@@ -41,7 +41,7 @@
 extern "C" {
 #endif
 
-enum { UUID_LEN = 16, UUID_STR_LEN = 36 };
+enum { UUID_LEN = 16, UUID_STR_PLAIN_LEN = 32, UUID_STR_LEN = 36 };
 
 /**
  * \brief UUID structure struct
@@ -62,6 +62,28 @@ struct tt_uuid {
 void
 tt_uuid_create(struct tt_uuid *uu);
 
+inline int
+tt_uuid_validate(struct tt_uuid *uu)
+{
+	/* Check variant (NCS, RFC4122, MSFT) */
+	uint8_t n = uu->clock_seq_hi_and_reserved;
+	if ((n & 0x80) != 0x00 && (n & 0xc0) != 0x80 &&	(n & 0xe0) != 0xc0)
+		return 1;
+	return 0;
+}
+
+inline int
+tt_uuid_from_fmt_string(const char *in, struct tt_uuid *uu,
+			const char *fmt)
+{
+	if (sscanf(in, fmt, &uu->time_low, &uu->time_mid,
+		   &uu->time_hi_and_version, &uu->clock_seq_hi_and_reserved,
+		   &uu->clock_seq_low, &uu->node[0], &uu->node[1], &uu->node[2],
+		   &uu->node[3], &uu->node[4], &uu->node[5]) != 11)
+		return 1;
+	return tt_uuid_validate(uu);
+}
+
 /**
  * \brief Parse UUID from string.
  * \param in string
@@ -71,19 +93,26 @@ tt_uuid_create(struct tt_uuid *uu);
 inline int
 tt_uuid_from_string(const char *in, struct tt_uuid *uu)
 {
-	if (strlen(in) != UUID_STR_LEN ||
-	    sscanf(in, "%8x-%4hx-%4hx-%2hhx%2hhx-%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx",
-		   &uu->time_low, &uu->time_mid, &uu->time_hi_and_version,
-		   &uu->clock_seq_hi_and_reserved, &uu->clock_seq_low,
-		   &uu->node[0], &uu->node[1], &uu->node[2], &uu->node[3],
-		   &uu->node[4], &uu->node[5]) != 11)
+	if (strlen(in) != UUID_STR_LEN)
 		return 1;
+	return tt_uuid_from_fmt_string(in, uu,
+				       "%8x-%4hx-%4hx-%2hhx%2hhx-"
+				       "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx");
+}
 
-	/* Check variant (NCS, RFC4122, MSFT) */
-	uint8_t n = uu->clock_seq_hi_and_reserved;
-	if ((n & 0x80) != 0x00 && (n & 0xc0) != 0x80 &&	(n & 0xe0) != 0xc0)
-		return 1;
-	return 0;
+inline int
+tt_uuid_from_lstring(const char *in, uint32_t len, struct tt_uuid *uu)
+{
+	if (len == UUID_STR_PLAIN_LEN) {
+		return tt_uuid_from_fmt_string(in, uu,
+					       "%8x%4hx%4hx%2hhx%2hhx%2hhx%2hhx"
+					       "%2hhx%2hhx%2hhx%2hhx");
+	} else if (len == UUID_STR_LEN) {
+		return tt_uuid_from_fmt_string(in, uu,
+					       "%8x-%4hx-%4hx-%2hhx%2hhx-"
+					       "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx");
+	}
+	return 1;
 }
 
 /**
