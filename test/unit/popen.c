@@ -60,7 +60,7 @@ popen_write_exit(void)
 	};
 	int rc;
 
-	plan(7);
+	plan(6);
 	header();
 
 	handle = popen_new(&opts);
