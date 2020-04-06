@@ -204,10 +204,15 @@ enum say_logger_type
 log_type();
 
 /**
- * Default logger file descriptor.
+ * Accessors for default logger file descriptor.
+ *
+ * It is needed for dark magic inside popen implementation.
+ * Unlikely it is what you want to use anywhere else.
  */
 int
 log_get_fd(void);
+void
+log_set_fd(int new_fd);
 
 /**
  * Set log level. Can be used dynamically.
