@@ -172,13 +172,58 @@ local function test_gc(test)
     test:ok(is_dead, 'the process is killed when the handle is collected')
 end
 
+--
+-- Simple read() / write() test.
+--
+local function test_read_write(test)
+    test:plan(8)
+
+    local payload = 'hello'
+
+    -- The script copies data from stdin to stdout.
+    local script = ('prompt=""; read -n %d prompt; echo -n "$prompt"')
+        :format(payload:len())
+    local ph = popen.posix(script, 'rw')
+
+    -- Write to stdin, wait for termination, read from stdout.
+    local res, err = ph:write(payload)
+    test:is_deeply({res, err}, {true, nil}, 'write() succeeds')
+    local state, exit_code = ph:wait()
+    test:is(state, popen.c.state.EXITED, 'verify exit status')
+    test:is(exit_code, 0, 'verify exit code')
+    local res, err = ph:read()
+    test:is_deeply({res, err}, {payload, nil}, 'read() from stdout succeeds')
+
+    assert(ph:close())
+
+    -- The script copies data from stdin to stderr.
+    local script = ('prompt=""; read -n %d prompt; echo -n "$prompt" 1>&2')
+        :format(payload:len())
+    local ph = popen.posix(script, 'rw')
+
+    -- Write to stdin, wait for termination, read from stderr.
+    local res, err = ph:write(payload)
+    test:is_deeply({res, err}, {true, nil}, 'write() succeeds')
+    -- XXX: Move stderr flag to an options table.
+    -- XXX: Should not read wait for a first byte?
+    local state, exit_code = ph:wait()
+    test:is(state, popen.c.state.EXITED, 'verify exit status')
+    test:is(exit_code, 0, 'verify exit code')
+    local res, err = ph:read(true)
+    test:is_deeply({res, err}, {payload, nil}, 'read() from stderr succeeds')
+
+    assert(ph:close())
+end
+
 local test = tap.test('popen')
-test:plan(3)
+test:plan(4)
 
 -- XXX: add bad api usage cases
+-- XXX: add popen.new() API test
 
 test:test('trivial_echo_output', test_trivial_echo_output)
 test:test('kill_child_process', test_kill_child_process)
 test:test('gc', test_gc)
+test:test('read_write', test_read_write)
 
 os.exit(test:check() and 0 or 1)
