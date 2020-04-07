@@ -777,8 +777,8 @@ replicaset_needs_rejoin(struct replica **master)
 			continue;
 
 		const struct ballot *ballot = &applier->ballot;
-		if (vclock_compare(&ballot->gc_vclock,
-				   &replicaset.vclock) <= 0) {
+		if (vclock_compare_ignore0(&ballot->gc_vclock,
+					   &replicaset.vclock) <= 0) {
 			/*
 			 * There's at least one master that still stores
 			 * WALs needed by this instance. Proceed to local

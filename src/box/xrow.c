@@ -51,7 +51,7 @@ static_assert(IPROTO_DATA < 0x7f && IPROTO_METADATA < 0x7f &&
 static inline uint32_t
 mp_sizeof_vclock(const struct vclock *vclock)
 {
-	uint32_t size = vclock_size(vclock);
+	uint32_t size = vclock_size_ignore0(vclock);
 	return mp_sizeof_map(size) + size * (mp_sizeof_uint(UINT32_MAX) +
 					     mp_sizeof_uint(UINT64_MAX));
 }
@@ -59,10 +59,14 @@ mp_sizeof_vclock(const struct vclock *vclock)
 static inline char *
 mp_encode_vclock(char *data, const struct vclock *vclock)
 {
-	data = mp_encode_map(data, vclock_size(vclock));
+	data = mp_encode_map(data, vclock_size_ignore0(vclock));
 	struct vclock_iterator it;
 	vclock_iterator_init(&it, vclock);
-	vclock_foreach(&it, replica) {
+	struct vclock_c replica;
+	replica = vclock_iterator_next(&it);
+	if (replica.id == 0)
+		replica = vclock_iterator_next(&it);
+	for ( ; replica.id < VCLOCK_MAX; replica = vclock_iterator_next(&it)) {
 		data = mp_encode_uint(data, replica.id);
 		data = mp_encode_uint(data, replica.lsn);
 	}

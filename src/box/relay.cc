@@ -464,7 +464,7 @@ relay_schedule_pending_gc(struct relay *relay, const struct vclock *vclock)
 		 * the greater signatures is due to changes pulled
 		 * from other members of the cluster.
 		 */
-		if (vclock_compare(&curr->vclock, vclock) > 0)
+		if (vclock_compare_ignore0(&curr->vclock, vclock) > 0)
 			break;
 		stailq_shift(&relay->pending_gc);
 		free(gc_msg);
