@@ -145,3 +145,11 @@ static_build:
 
 perf_run:
 	/opt/bench-run/benchs/${BENCH}/run.sh ${ARG}
+
+# ###################
+# Static Analysis
+# ###################
+
+luacheck:
+	tarantoolctl rocks install luacheck
+	.rocks/bin/luacheck --codes --config .luacheckrc .
